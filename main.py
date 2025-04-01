@@ -1,6 +1,4 @@
-import string
 from collections import defaultdict
-import datetime
 
 class Vehichle:
     vehichles = {}
@@ -10,22 +8,6 @@ class Vehichle:
         self.status = "entry"
         self.sid = -1
         self.tid = -1
-        # vehichles.
-    
-    # @classmethod
-    # def vehichles_in_town():
-    #     vehichles[lno]
-        
-    # items = {}
-
-    # def __new__(cls, id, type):
-    #     if id not in cls.items:
-    #         cls.items[id] = super().__new__(cls)
-    #         print(cls.items[id])
-    #     return cls.items[id]
-
-
-
 
 class Ticket(Vehichle):
     sid = checkin = checkout = 0
@@ -44,24 +26,16 @@ class Ticket(Vehichle):
         print(f"Check Out: {self.checkout}")
         print(f"Rate: {self.rate}")
 
-# class Town:
-#     def __init__(self):
-#         self.vehichle_in_town = []
-#     def add_vehichle(vehichle_in_town, lis, type):
-#         v = Vehichle("456J", "Electric")
-#         vehichle_in_town.append(v)
 
 class Parking():
     levels = {}
     vehichle_in_town = {}
-    def __init__(self, level: int ) : # slot_per_level: int):
+    def __init__(self, level: int ) : 
         self.levels = defaultdict()
         self.noOfLevel = level
         self.pay = 50
-        #self.slot_type = type
-        #self.avbl = True
-        #self.slotpl = slot_per_level
-        #self.slots = {"Regular": 0, "Electric": 0, "Handicapped" : 0 }
+        self.waitlist = defaultdict(list)
+
     
     def create_slots_level(self, level: int, slots: dict) -> str:
         slotpl = {}
@@ -83,12 +57,16 @@ class Parking():
                 return (l, ind)
         return (-1, -1)
     
-    
     def book_slot(self, lno: str, hour: int) -> (str, Ticket):
         car =self.vehichle_in_town[lno]
         lvl, sid = self.get_slot(car.lno)
-        if lvl == -1 and sid == -1 or car.status == "Parked":
-            return "Rejected", None
+        if car.status == "Parked":
+            return "Already parked", None
+        if lvl == -1 and sid == -1 :
+            self.waitlist[car.type].append(car)
+            car.status = "waiting"
+            # print(self.waitlist)
+            return "waiting", None
         self.levels[lvl][car.type][1][sid] = False
         slotID = "L"+ str(lvl) + "S" + str(sid) + car.type[0]
         id = str(hour * (sid + 1)) + car.type[0]
@@ -101,13 +79,26 @@ class Parking():
         car =self.vehichle_in_town[lno]
         self.levels[lvl][car.type][1][sid] = 0
     
+    def rate(self, park_hour: int) -> int:
+        if park_hour < 4:
+            return 50
+        elif park_hour < 10:
+            rem_hour = park_hour - 4
+            return 50 + rem_hour * 10
+        elif park_hour < 18:
+            rem_hour = park_hour - 14
+            return 50 + (park_hour - 4) * 10 + rem_hour * 20
+        else:
+            rem_hour = park_hour - 18
+            return 50 + (park_hour - 4) * 10 + (park_hour - 10) * 20 + rem_hour * 30
+    
     def exit_slot(self, lno: str, hour: int, tkt: Ticket) -> str:
         car =self.vehichle_in_town[lno]
         if car.status != "Parked":
             return "The car is not in Parking!"
         
         occupied_hours = (hour - tkt.checkin) % 24
-        tkt.rate = occupied_hours * self.pay
+        tkt.rate = self.rate(occupied_hours)
         
 
         lvl, sid = int(tkt.sid[1]), int(tkt.sid[3:4])
@@ -115,33 +106,25 @@ class Parking():
 
         car.status = "exit"
         tkt.checkout = hour
+        if self.waitlist[car.type] != []:
+            self.move_waitlist(car.type)
         return f"Rate: {tkt.rate}"
     def add_vehichle(self, lis, type):
         v = Vehichle(lis, type)
         self.vehichle_in_town[lis] = v
     
+    def move_waitlist(self,car_type : str):
+        waitCar = self.waitlist[car_type].pop(0)
+        _, tkt = self.book_slot(waitCar.lno, 12)
+        print (f"{waitCar.lno} is now parked from waiting list")
 
-# class Slot:
-#     def __init__(self, level: int, id: int, type: string):
-#         self.level = level
-#         self.sid = id
-#         self.slot_type = type
-#         self.avbl = True
-        #self.slots = slots
 
-# def add_vehichle(vehichle_in_town, lis, type):
-#     v = Vehichle("456J", "Electric")
-#     vehichle_in_town.append(v)
-
+    
 def main():
     park1 = Parking(3)
     park1.add_vehichle("456", "Electric")
     park1.add_vehichle("452","Electric" )
-    print(park1.vehichle_in_town["456"])
-    # v.append(park1)
-    # v = Vehichle(456, "Regular")
-    # v1 = Vehichle(452, "Electric")
-
+    # print(park1.vehichle_in_town["456"])
 
     res = park1.create_slots_level(1, {"Regular": 3, "Electric": 0, "Handicapped" : 5 })
     res = park1.create_slots_level(2, {"Regular": 5, "Electric": 1, "Handicapped" : 1 })
@@ -155,7 +138,7 @@ def main():
     print(park1.get_slot("452"))
     r1, tkt1 = park1.book_slot("452", 3)
     print(r1)
-    e = park1.exit_slot("456",5, tkt)
+    e = park1.exit_slot("456",18, tkt)
     print(e)
     if tkt:
         tkt.display_ticket()
