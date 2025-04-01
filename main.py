@@ -30,11 +30,14 @@ class Ticket(Vehichle):
 class Parking():
     levels = {}
     vehichle_in_town = {}
+    cars_reserve = {}
     def __init__(self, level: int ) : 
         self.levels = defaultdict()
         self.noOfLevel = level
         self.pay = 50
         self.waitlist = defaultdict(list)
+        self.cars_reserve = defaultdict(tuple)
+
 
     
     def create_slots_level(self, level: int, slots: dict) -> str:
@@ -71,6 +74,7 @@ class Parking():
         slotID = "L"+ str(lvl) + "S" + str(sid) + car.type[0]
         id = str(hour * (sid + 1)) + car.type[0]
         tkt = Ticket(id, car, hour, slotID)
+        # self.cars_in_park[car.lno] = tkt
         car.status = "Parked"
         car.sid = slotID
         return "Successfully parked", tkt
@@ -109,14 +113,28 @@ class Parking():
         if self.waitlist[car.type] != []:
             self.move_waitlist(car.type)
         return f"Rate: {tkt.rate}"
-    def add_vehichle(self, lis, type):
+    def add_vehichle(self, lis, type) -> None:
         v = Vehichle(lis, type)
         self.vehichle_in_town[lis] = v
     
-    def move_waitlist(self,car_type : str):
+    def move_waitlist(self,car_type : str)-> None:
         waitCar = self.waitlist[car_type].pop(0)
         _, tkt = self.book_slot(waitCar.lno, 12)
         print (f"{waitCar.lno} is now parked from waiting list")
+
+    def book_reservation(self, car_type: str, lno: str, hour: int, out : int) -> None:
+        car =self.vehichle_in_town[lno]
+        lvl, sid = self.get_slot(car.lno)
+        slotID = "L"+ str(lvl) + "S" + str(sid) + car.type[0]
+        id = str(hour * (sid + 1)) + car.type[0]
+        tkt = Ticket(id, car, hour, slotID)
+        tkt.checkout = out
+        occupied_hours = (hour - out) % 24
+        tkt.rate = self.rate(occupied_hours)
+        self.cars_reserve[car.lno] = (tkt.checkin, tkt.checkout, tkt.slotID)
+
+
+
 
 
     
@@ -138,6 +156,7 @@ def main():
     print(park1.get_slot("452"))
     r1, tkt1 = park1.book_slot("452", 3)
     print(r1)
+    print("going to exit")
     e = park1.exit_slot("456",18, tkt)
     print(e)
     if tkt:
