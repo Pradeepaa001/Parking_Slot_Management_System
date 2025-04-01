@@ -3,25 +3,23 @@ from collections import defaultdict
 class Vehichle:
     vehichles = {}
     def __init__(self, lisence: str, type: str):
-        self.lno = lisence
+        self.liscence_no = lisence
         self.type = type
         self.status = "entry"
-        self.sid = -1
-        self.tid = -1
+        self.slot_id = -1
 
 class Ticket(Vehichle):
-    sid = checkin = checkout = 0
-    def __init__(self, id : int, v : Vehichle, hour: int, sid: str):
-        self.sid = sid
-        self.vid = v.lno
+    slot_id = checkin = checkout = 0
+    def __init__(self, id : int, v : Vehichle, hour: int, slot_id: str):
+        self.slot_id = slot_id
+        self.vid = v.liscence_no
         self.checkin = hour
         self.checkout = 0
         self.rate = 0
-        self.tid = id 
     def display_ticket(self):
         print(f"Ticket ID: {self.tid}")
         print(f"VID: {self.vid}")
-        print(f"Slot: {self.sid}")
+        print(f"Slot: {self.slot_id}")
         print(f"Check In: {self.checkin}")
         print(f"Check Out: {self.checkout}")
         print(f"Rate: {self.rate}")
@@ -37,8 +35,6 @@ class Parking():
         self.pay = 50
         self.waitlist = defaultdict(list)
         self.cars_reserve = defaultdict(tuple)
-
-
     
     def create_slots_level(self, level: int, slots: dict) -> str:
         slotpl = {}
@@ -50,8 +46,8 @@ class Parking():
         self.levels[level] = slotpl
         return "Created successfuly"
     
-    def get_slot(self, lno: str) -> tuple:
-        car = self.vehichle_in_town[lno]
+    def get_slot(self, liscence_no: str) -> tuple:
+        car = self.vehichle_in_town[liscence_no]
         t = car.type
         for l in self.levels:
             lvl = self.levels[l]
@@ -59,29 +55,42 @@ class Parking():
                 ind = lvl[t][1].index(True)
                 return (l, ind)
         return (-1, -1)
+    def chk_reservation(self, slotId, hour):
+        for liscence_no in self.cars_reserve:
+            if slotId == self.cars_reserve[liscence_no][2] and hour >= self.cars_reserve[liscence_no][0] and hour <= self.cars_reserve[liscence_no][1]:
+                return True
+        return False
     
-    def book_slot(self, lno: str, hour: int) -> (str, Ticket):
-        car =self.vehichle_in_town[lno]
-        lvl, sid = self.get_slot(car.lno)
+    def book_slot(self, liscence_no: str, hour: int) -> (str, Ticket):
+        car =self.vehichle_in_town[liscence_no]
+        lvl, slot_id = self.get_slot(car.liscence_no)
         if car.status == "Parked":
             return "Already parked", None
-        if lvl == -1 and sid == -1 :
+        
+        if lvl == -1 and slot_id == -1 :
             self.waitlist[car.type].append(car)
             car.status = "waiting"
             # print(self.waitlist)
             return "waiting", None
-        self.levels[lvl][car.type][1][sid] = False
-        slotID = "L"+ str(lvl) + "S" + str(sid) + car.type[0]
-        id = str(hour * (sid + 1)) + car.type[0]
+        
+        slotID = "L"+ str(lvl) + "S" + str(slot_id) + car.type[0]
+        id = str(hour * (slot_id + 1)) + car.type[0]
+        
+        if self.chk_reservation(slotID, hour):
+            self.waitlist[car.type].append(car)
+            car.status = "waiting"
+            return "Already Booked", None
+        
+        self.levels[lvl][car.type][1][slot_id] = False
         tkt = Ticket(id, car, hour, slotID)
-        # self.cars_in_park[car.lno] = tkt
+        # self.cars_in_park[car.liscence_no] = tkt
         car.status = "Parked"
-        car.sid = slotID
+        car.slot_id = slotID
         return "Successfully parked", tkt
     
-    def free_slot(self, lvl : int, lno: str, sid : int) -> None:
-        car =self.vehichle_in_town[lno]
-        self.levels[lvl][car.type][1][sid] = 0
+    def free_slot(self, lvl : int, liscence_no: str, slot_id : int) -> None:
+        car =self.vehichle_in_town[liscence_no]
+        self.levels[lvl][car.type][1][slot_id] = 0
     
     def rate(self, park_hour: int) -> int:
         if park_hour < 4:
@@ -96,8 +105,8 @@ class Parking():
             rem_hour = park_hour - 18
             return 50 + (park_hour - 4) * 10 + (park_hour - 10) * 20 + rem_hour * 30
     
-    def exit_slot(self, lno: str, hour: int, tkt: Ticket) -> str:
-        car =self.vehichle_in_town[lno]
+    def exit_slot(self, liscence_no: str, hour: int, tkt: Ticket) -> str:
+        car =self.vehichle_in_town[liscence_no]
         if car.status != "Parked":
             return "The car is not in Parking!"
         
@@ -105,33 +114,42 @@ class Parking():
         tkt.rate = self.rate(occupied_hours)
         
 
-        lvl, sid = int(tkt.sid[1]), int(tkt.sid[3:4])
-        self.free_slot(lvl, lno, sid)
+        lvl, slot_id = int(tkt.slot_id[1]), int(tkt.slot_id[3:4])
+        self.free_slot(lvl, liscence_no, slot_id)
 
         car.status = "exit"
         tkt.checkout = hour
         if self.waitlist[car.type] != []:
             self.move_waitlist(car.type)
         return f"Rate: {tkt.rate}"
+    
     def add_vehichle(self, lis, type) -> None:
         v = Vehichle(lis, type)
         self.vehichle_in_town[lis] = v
     
     def move_waitlist(self,car_type : str)-> None:
         waitCar = self.waitlist[car_type].pop(0)
-        _, tkt = self.book_slot(waitCar.lno, 12)
-        print (f"{waitCar.lno} is now parked from waiting list")
+        _, tkt = self.book_slot(waitCar.liscence_no, 12)
+        print (f"{waitCar.liscence_no} is now parked from waiting list")
 
-    def book_reservation(self, car_type: str, lno: str, hour: int, out : int) -> None:
-        car =self.vehichle_in_town[lno]
-        lvl, sid = self.get_slot(car.lno)
-        slotID = "L"+ str(lvl) + "S" + str(sid) + car.type[0]
-        id = str(hour * (sid + 1)) + car.type[0]
+    def book_reservation(self, liscence_no: str, car_type: str, hour: int, out : int) -> None:
+        car =self.vehichle_in_town[liscence_no]
+        lvl, slot_id = self.get_slot(liscence_no)
+        if lvl == -1 and slot_id == -1:
+            print("car not booked")
+            return        
+
+        print(lvl, slot_id)
+        slotID = "L"+ str(lvl) + "S" + str(slot_id) + car.type[0]
+        id = str(hour * (slot_id + 1)) + car.type[0]
         tkt = Ticket(id, car, hour, slotID)
         tkt.checkout = out
         occupied_hours = (hour - out) % 24
         tkt.rate = self.rate(occupied_hours)
-        self.cars_reserve[car.lno] = (tkt.checkin, tkt.checkout, tkt.slotID)
+        self.cars_reserve[car.liscence_no] = (tkt.checkin, tkt.checkout, tkt.slot_id)
+        car.status = "booked"
+        print("car booked")
+
 
 
 
@@ -142,14 +160,17 @@ def main():
     park1 = Parking(3)
     park1.add_vehichle("456", "Electric")
     park1.add_vehichle("452","Electric" )
-    # print(park1.vehichle_in_town["456"])
+    park1.add_vehichle("416","Electric" )
 
+    # print(park1.vehichle_in_town["456"])
+    
     res = park1.create_slots_level(1, {"Regular": 3, "Electric": 0, "Handicapped" : 5 })
     res = park1.create_slots_level(2, {"Regular": 5, "Electric": 1, "Handicapped" : 1 })
     print(res)
     res = park1.create_slots_level(3, {"Regular": 4, "Electric": 0, "Handicapped" : 5 })
     print(res)
     print("working")
+    park1.book_reservation("416", "Electric", 2, 7)
     print(park1.get_slot("456"))
     r, tkt = park1.book_slot("456", 2)
     print(r)
